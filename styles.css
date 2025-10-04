@@ -110,6 +110,72 @@ body {
   transition: all 0.2s ease;
   opacity: 0;
 }
+.btn-logout {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0.5rem 0.9rem;
+  background: none;
+  border: 1px solid var(--color-border);
+  border-radius: 10px;
+  cursor: pointer;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--color-text);
+  transition: background 0.2s ease;
+}
+
+.btn-logout:hover {
+  background: var(--color-border);
+}
+
+.btn-logout i {
+  width: 18px;
+  height: 18px;
+}
+
+/* Ekran 480px ve altındaysa (mobil) */
+@media (max-width: 480px) {
+  .btn-logout {
+    padding: 0.35rem 0.6rem;
+    font-size: 0.75rem;
+    gap: 4px;
+  }
+
+  .btn-logout i {
+    width: 16px;
+    height: 16px;
+  }
+}
+
+.btn-back {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--color-text);
+  padding: 0.25rem;
+  border-radius: 8px;
+  transition: background 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.btn-back:hover {
+  background: var(--color-border);
+}
+
+.btn-back:focus-visible {
+  outline: 2px solid var(--color-border);
+  outline-offset: 2px;
+}
+
+.btn-back i {
+  width: 22px;
+  height: 22px;
+}
+
+
 
 /* Eğer 3 nokta menüye geçtiysen, eski sil butonunu gizlemek için aç: */
 .course-card__delete { display: none !important; }
