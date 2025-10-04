@@ -13,10 +13,17 @@
 <body>
   
   <!-- Header -->
-  <header class="header">
+<header class="header" style="justify-content: space-between;">
+  <div style="display:flex; align-items:center; gap:0.75rem;">
     <h1 class="header__logo">ÇÇP</h1>
     <p class="header__subtitle">Çot Çalışma Portalı</p>
-  </header>
+  </div>
+  <button id="logoutBtn" class="btn-logout">
+    <i data-lucide="log-out"></i>
+    Çıkış
+  </button>
+</header>
+
 
   <!-- Main Content -->
   <!-- Konu kartları buraya script.js tarafından Firebase'den çekilerek yüklenecek -->
@@ -111,8 +118,14 @@
       </div>
     </div>
   </div>
+  
 
   <!-- Script'i yükle -->
+   <script src="https://unpkg.com/lucide@latest"></script>
+<script>
+  lucide.createIcons();
+</script>
+   <script type="module" src="auth-guard.js"></script>
   <script type="module" src="script.js"></script>
 </body>
 </html>
