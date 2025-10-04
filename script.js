@@ -1,10 +1,10 @@
 // script.js — type="module"
 
-import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-app.js";
-import { getAuth, onAuthStateChanged, signInAnonymously } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-auth.js";
+import { initializeApp, getApps, getApp } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-app.js";
+import { getAuth, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-auth.js";
 import {
   getFirestore, collection, addDoc, serverTimestamp,
-  onSnapshot, query, orderBy, deleteDoc, doc, setLogLevel, updateDoc
+  onSnapshot, query, orderBy, deleteDoc, doc, updateDoc
 } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js";
 
 /***** Firebase Config *****/
@@ -18,12 +18,11 @@ const firebaseConfig = {
   measurementId: "G-JB7J6N3P37"
 };
 
-const app  = initializeApp(firebaseConfig);
+const app  = getApps().length ? getApp() : initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db   = getFirestore(app);
-setLogLevel('debug');
 
-/***** Global UI durumları *****/
+/***** Global durumlar *****/
 let currentUser = null;
 let courseToDelete = null;
 let courseIdToDelete = null;
@@ -35,13 +34,14 @@ const $  = (sel) => document.querySelector(sel);
 const $$ = (sel) => Array.from(document.querySelectorAll(sel));
 const courseContainer = $('#courseContainer');
 
-/***** Kart render (⋮ menülü) *****/
+/***** Kurs kartı render (⋮ menülü) *****/
 function renderCourseCard(docId, name, count = 0) {
   const card = document.createElement('div');
   card.className = 'course-card';
   card.dataset.id = docId;
   card.dataset.name = name;
   card.style.position = 'relative';
+
   card.innerHTML = `
     <button class="card-menu-btn" aria-haspopup="true" aria-expanded="false" title="Seçenekler">⋮</button>
     <div class="card-menu" role="menu">
@@ -59,43 +59,38 @@ function renderCourseCard(docId, name, count = 0) {
   // Menü aç/kapat
   menuBtn.addEventListener('click', (e) => {
     e.stopPropagation();
-    // önce diğer açık menüleri kapat
     $$('.card-menu.active').forEach(m => { if (m !== menu) m.classList.remove('active'); });
     menu.classList.toggle('active');
     menuBtn.setAttribute('aria-expanded', menu.classList.contains('active') ? 'true' : 'false');
   });
 
-  // Menü seçenekleri
+  // Düzenle seçeneği
   menu.querySelector('.edit-option').addEventListener('click', (e) => {
     e.stopPropagation();
     menu.classList.remove('active');
     openEditCourseModal(docId, name);
   });
 
+  // Sil seçeneği
   menu.querySelector('.delete-option').addEventListener('click', (e) => {
     e.stopPropagation();
     menu.classList.remove('active');
-    // confirmDelete(e, button, courseName, docId)
-    confirmDelete(e, menuBtn, name, docId);
+    confirmDelete(menuBtn, name, docId);
   });
 
   // Kartın boş bir yerine tıklanınca ünitelere git
   card.addEventListener('click', () => {
-    // menü açıksa kapat
     menu.classList.remove('active');
     window.location.href = `units.html?courseId=${docId}&courseName=${encodeURIComponent(name)}`;
   });
 
   const spacer = courseContainer?.querySelector('.spacer');
-  if (courseContainer) {
-    if (spacer) courseContainer.insertBefore(card, spacer);
-    else courseContainer.appendChild(card);
-  }
+  if (spacer) courseContainer.insertBefore(card, spacer);
+  else courseContainer.appendChild(card);
 }
 
-/***** Kartları temizle *****/
+/***** Kursları temizle *****/
 function clearCards() {
-  if (!courseContainer) return;
   $$('.course-card, .empty-message').forEach(el => el.remove());
 }
 
@@ -106,9 +101,7 @@ function getCoursesCollectionRef(uid) {
 
 /***** Realtime listener *****/
 function startRealtimeListener(uid) {
-  const colRef = getCoursesCollectionRef(uid);
-  const q = query(colRef, orderBy('createdAt', 'desc'));
-
+  const q = query(getCoursesCollectionRef(uid), orderBy('createdAt', 'desc'));
   onSnapshot(q, (snapshot) => {
     clearCards();
 
@@ -130,18 +123,15 @@ function startRealtimeListener(uid) {
   });
 }
 
-/***** Auth *****/
-onAuthStateChanged(auth, async (user) => {
+/***** Auth kontrolü *****/
+onAuthStateChanged(auth, (user) => {
   if (user) {
     currentUser = user;
     startRealtimeListener(user.uid);
-  } else {
-    try { await signInAnonymously(auth); }
-    catch (err) { console.error('[auth] signInAnonymously error:', err); }
   }
 });
 
-/***** Modal: Konu ekle *****/
+/***** Modal: Kurs ekle *****/
 export function openModal() {
   $('#modalOverlay')?.classList.add('active');
   $('#courseInput')?.focus();
@@ -173,36 +163,28 @@ export async function addCourse() {
   }
 }
 
-/***** Modal: Konu silme (iki aşamalı) *****/
-export function confirmDelete(e, button, courseName, docId) {
+/***** Modal: Kurs silme *****/
+function confirmDelete(button, courseName, docId) {
   deleteButton = button;
   courseToDelete = courseName;
   courseIdToDelete = docId;
-  const name1 = $('#deleteCourseName');
-  const modal1 = $('#deleteModalOverlay');
-  if (name1) name1.textContent = courseName;
-  if (modal1) modal1.classList.add('active');
+  $('#deleteCourseName').textContent = courseName;
+  $('#deleteModalOverlay')?.classList.add('active');
 }
-export function closeDeleteModal() {
+function closeDeleteModal() {
   $('#deleteModalOverlay')?.classList.remove('active');
   deleteButton = null; courseToDelete = null; courseIdToDelete = null;
 }
-export function closeDeleteModalOnOverlay(e) {
-  if (e.target.id === 'deleteModalOverlay') closeDeleteModal();
-}
-export function showFinalConfirmation() {
+function showFinalConfirmation() {
   $('#finalDeleteCourseName').textContent = courseToDelete ?? '';
   $('#finalConfirmModalOverlay')?.classList.add('active');
   $('#deleteModalOverlay')?.classList.remove('active');
 }
-export function closeFinalConfirmModal() {
+function closeFinalConfirmModal() {
   $('#finalConfirmModalOverlay')?.classList.remove('active');
   deleteButton = null; courseToDelete = null; courseIdToDelete = null;
 }
-export function closeFinalConfirmModalOnOverlay(e) {
-  if (e.target.id === 'finalConfirmModalOverlay') closeFinalConfirmModal();
-}
-export async function deleteCourse() {
+async function deleteCourse() {
   if (!currentUser || !courseIdToDelete) return;
   try {
     await deleteDoc(doc(db, `users/${currentUser.uid}/courses/${courseIdToDelete}`));
@@ -213,7 +195,7 @@ export async function deleteCourse() {
   }
 }
 
-/***** Modal: Konu düzenle *****/
+/***** Modal: Kurs düzenle *****/
 function openEditCourseModal(id, oldName) {
   courseIdToEdit = id;
   const input = $('#editCourseInput');
@@ -224,12 +206,6 @@ function closeEditCourseModal() {
   $('#editCourseModalOverlay')?.classList.remove('active');
   const input = $('#editCourseInput'); if (input) input.value = '';
   courseIdToEdit = null;
-}
-function closeEditCourseModalOnOverlay(e) {
-  if (e.target.id === 'editCourseModalOverlay') closeEditCourseModal();
-}
-function handleEditCourseKeyPress(e) {
-  if (e.key === 'Enter') saveCourseEdit();
 }
 async function saveCourseEdit() {
   const newName = ($('#editCourseInput')?.value || '').trim();
@@ -243,35 +219,43 @@ async function saveCourseEdit() {
   }
 }
 
-/***** window binding *****/
+/***** Logout *****/
+function setupLogout() {
+  const btn = document.getElementById("logoutBtn");
+  if (btn) {
+    btn.addEventListener("click", async () => {
+      await signOut(auth);
+      window.location.href = "login.html";
+    });
+  }
+}
+
+/***** DOM hazır *****/
+document.addEventListener('DOMContentLoaded', () => {
+  // Kurs ekleme butonu
+  const openers = [...document.querySelectorAll('#addCourseBtn'), ...document.querySelectorAll('.btn-add')];
+  openers.forEach(el => el.addEventListener('click', (e) => { e.preventDefault(); openModal(); }));
+
+  // Menüleri dışarı tıklayınca kapat
+  document.addEventListener('click', () => {
+    $$('.card-menu.active').forEach(m => m.classList.remove('active'));
+    $$('.card-menu-btn[aria-expanded="true"]').forEach(b => b.setAttribute('aria-expanded','false'));
+  });
+
+  setupLogout();
+});
+
+/***** Window binding (HTML onclick için) *****/
 window.openModal = openModal;
 window.closeModal = closeModal;
 window.closeModalOnOverlay = closeModalOnOverlay;
 window.handleKeyPress = handleKeyPress;
 window.addCourse = addCourse;
 
-window.confirmDelete = confirmDelete;
 window.closeDeleteModal = closeDeleteModal;
-window.closeDeleteModalOnOverlay = closeDeleteModalOnOverlay;
 window.showFinalConfirmation = showFinalConfirmation;
 window.closeFinalConfirmModal = closeFinalConfirmModal;
-window.closeFinalConfirmModalOnOverlay = closeFinalConfirmModalOnOverlay;
 window.deleteCourse = deleteCourse;
 
 window.closeEditCourseModal = closeEditCourseModal;
-window.closeEditCourseModalOnOverlay = closeEditCourseModalOnOverlay;
-window.handleEditCourseKeyPress = handleEditCourseKeyPress;
 window.saveCourseEdit = saveCourseEdit;
-
-/***** DOM ready *****/
-document.addEventListener('DOMContentLoaded', () => {
-  // “Konu Ekle” butonu
-  const openers = [...document.querySelectorAll('#addCourseBtn'), ...document.querySelectorAll('.btn-add')];
-  openers.forEach(el => el.addEventListener('click', (e) => { e.preventDefault(); openModal(); }));
-
-  // Kart dışına tıklanınca tüm menüleri kapat
-  document.addEventListener('click', () => {
-    $$('.card-menu.active').forEach(m => m.classList.remove('active'));
-    $$('.card-menu-btn[aria-expanded="true"]').forEach(b => b.setAttribute('aria-expanded','false'));
-  });
-});
