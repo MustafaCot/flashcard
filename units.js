@@ -1,11 +1,11 @@
 // units.js — type="module"
 
-import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-app.js";
-import { getAuth, onAuthStateChanged, signInAnonymously } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-auth.js";
-import { 
-  getFirestore, collection, addDoc, serverTimestamp, 
-  onSnapshot, query, orderBy, deleteDoc, doc, 
-  updateDoc, getDoc 
+import { initializeApp, getApps, getApp } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-app.js";
+import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-auth.js";
+import {
+  getFirestore, collection, addDoc, serverTimestamp,
+  onSnapshot, query, orderBy, deleteDoc, doc,
+  updateDoc
 } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js";
 
 /***** Firebase Config *****/
@@ -19,18 +19,20 @@ const firebaseConfig = {
   measurementId: "G-JB7J6N3P37"
 };
 
-const app = initializeApp(firebaseConfig);
+const app = getApps().length ? getApp() : initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db   = getFirestore(app);
 
 let currentUser = null;
-let courseId = null;
-let courseName = null;
-
 let unitToDelete = null;
 let unitIdToDelete = null;
 let deleteButton = null;
 let unitIdToEdit = null;
+
+// Sayfa yüklendiğinde URL'den courseId ve courseName'i al
+const urlParams = new URLSearchParams(window.location.search);
+const courseId = urlParams.get('courseId');
+const courseName = urlParams.get('courseName');
 
 const $ = (s) => document.querySelector(s);
 const unitContainer = $('#unitContainer');
@@ -46,19 +48,19 @@ function renderUnitCard(docId, name, count = 0) {
   card.className = 'course-card';
   card.dataset.id = docId;
   card.style.position = 'relative';
- card.innerHTML = `
-  <button class="card-menu-btn" aria-haspopup="true" aria-expanded="false">⋮</button>
-  <div class="card-menu">
-    <button class="edit-option">Düzenle</button>
-    <button class="delete-option">Sil</button>
-  </div>
-  <h2 class="course-card__title">${name}</h2>
-  <div class="unit-card__count">${count}</div>   <!-- 🔥 class farklı -->
-  <div class="course-card__label">Kart</div>
-`;
+  card.innerHTML = `
+    <button class="card-menu-btn" aria-haspopup="true" aria-expanded="false">⋮</button>
+    <div class="card-menu">
+      <button class="edit-option">Düzenle</button>
+      <button class="delete-option">Sil</button>
+    </div>
+    <h2 class="course-card__title">${name}</h2>
+    <div class="unit-card__count">${count}</div>
+    <div class="course-card__label">Kart</div>
+  `;
 
   const menuBtn = card.querySelector('.card-menu-btn');
-  const menu    = card.querySelector('.card-menu');
+  const menu = card.querySelector('.card-menu');
 
   // Menü aç/kapat
   menuBtn.addEventListener('click', (e) => {
@@ -80,6 +82,17 @@ function renderUnitCard(docId, name, count = 0) {
     e.stopPropagation();
     menu.classList.remove('active');
     confirmDeleteUnit(menuBtn, name, docId);
+  });
+
+  // ✅ Ünite kartına tıklanınca ilgili kartlar sayfasına git
+  card.addEventListener('click', (e) => {
+    // Menü veya iç butonlara tıklanmadıysa yönlendir
+    if (!e.target.classList.contains('card-menu-btn') && !e.target.closest('.card-menu')) {
+      const encodedCourse = encodeURIComponent(courseId || "");
+      const encodedUnit = encodeURIComponent(docId);
+      const encodedName = encodeURIComponent(name);
+      window.location.href = `cards.html?courseId=${encodedCourse}&unitId=${encodedUnit}&unitName=${encodedName}`;
+    }
   });
 
   unitContainer.insertBefore(card, unitContainer.querySelector('.spacer'));
@@ -110,9 +123,12 @@ function startRealtimeListener(uid) {
 onAuthStateChanged(auth, async (user) => {
   if (user) {
     currentUser = user;
+    if (!courseId) {
+        // Eğer courseId yoksa, kullanıcıyı ana sayfaya yönlendir
+        window.location.href = "index.html";
+        return;
+    }
     startRealtimeListener(user.uid);
-  } else {
-    await signInAnonymously(auth);
   }
 });
 
@@ -127,10 +143,10 @@ async function addUnit() {
   const name = (input?.value || '').trim();
   if (!name || !currentUser) return;
 
-  await addDoc(getUnitsRef(currentUser.uid), { 
-    name, 
-    count: 0,               // 🔥 ünite ilk açıldığında kart sayısı 0
-    createdAt: serverTimestamp() 
+  await addDoc(getUnitsRef(currentUser.uid), {
+    name,
+    count: 0,
+    createdAt: serverTimestamp()
   });
 
   closeUnitModal();
@@ -163,18 +179,8 @@ function closeFinalConfirmUnitModalOnOverlay(e) { if (e.target.id === 'finalConf
 
 async function deleteUnit() {
   if (!currentUser || !unitIdToDelete) return;
-
   await deleteDoc(doc(db, `users/${currentUser.uid}/courses/${courseId}/units/${unitIdToDelete}`));
-
   closeFinalConfirmUnitModal();
-
-  if (deleteButton) {
-    const card = deleteButton.closest('.course-card');
-    if (card) {
-      card.style.animation = 'fadeOut 0.3s ease';
-      setTimeout(() => card.remove(), 300);
-    }
-  }
 }
 
 /***** Modal: Ünite düzenle *****/
@@ -186,7 +192,7 @@ function openEditUnitModal(id, oldName) {
 }
 function closeEditUnitModal() {
   $('#editUnitModalOverlay')?.classList.remove('active');
-  const input = $('#editUnitInput'); if (input) input.value = '';
+  const input = $('#editUnitInput'); if (input) i.value = '';
   unitIdToEdit = null;
 }
 function closeEditUnitModalOnOverlay(e) {
@@ -225,12 +231,12 @@ window.closeEditUnitModalOnOverlay = closeEditUnitModalOnOverlay;
 window.handleEditUnitKeyPress = handleEditUnitKeyPress;
 window.saveUnitEdit = saveUnitEdit;
 
-/***** sayfa yüklenince *****/
+/***** Sayfa yüklenince *****/
 document.addEventListener('DOMContentLoaded', () => {
-  const params = new URLSearchParams(window.location.search);
-  courseId = params.get('courseId');
-  courseName = params.get('courseName');
-  if (courseName) $('#courseTitle').textContent = courseName;
+  // Başlık bilgisini ayarla
+  if (courseName) {
+    $('#courseTitle').textContent = courseName;
+  }
   $('#addUnitBtn')?.addEventListener('click', () => { openUnitModal(); });
 
   // dışarı tıklayınca menüleri kapat
